@@ -1,0 +1,56 @@
+"""
+Firestore data access layer.
+
+Collections used:
+- "events": one doc per reminder-worthy date
+    { name: str, event_type: str, month: int, day: int, notes: str, created_at: timestamp }
+- "config": single doc "owner" storing your Telegram chat_id
+    { chat_id: int }
+"""
+
+from google.cloud import firestore
+from datetime import datetime, timezone
+
+db = firestore.Client()
+
+
+def set_owner_chat_id(chat_id: int):
+    """Store the Telegram chat_id of the person using this bot (called on first message)."""
+    db.collection("config").document("owner").set({"chat_id": chat_id})
+
+
+def get_owner_chat_id():
+    doc = db.collection("config").document("owner").get()
+    if doc.exists:
+        return doc.to_dict().get("chat_id")
+    return None
+
+
+def add_event(name: str, event_type: str, month: int, day: int, notes: str = ""):
+    """Add a new reminder event (e.g. a birthday or anniversary)."""
+    event = {
+        "name": name,
+        "event_type": event_type,
+        "month": month,
+        "day": day,
+        "notes": notes,
+        "created_at": datetime.now(timezone.utc),
+    }
+    db.collection("events").add(event)
+    return event
+
+
+def get_events_for_month_day(month: int, day: int):
+    """Return all events matching a given month/day (e.g. tomorrow's date)."""
+    query = (
+        db.collection("events")
+        .where("month", "==", month)
+        .where("day", "==", day)
+        .stream()
+    )
+    return [doc.to_dict() for doc in query]
+
+
+def list_all_events():
+    """Return all stored events, useful for a '/list' command later."""
+    return [doc.to_dict() for doc in db.collection("events").stream()]
