@@ -1,4 +1,4 @@
-# Reminder Bot (Telegram + Claude + GCP)
+# Reminder Bot (Telegram + Gemini + GCP)
 
 A personal agent that remembers dates you tell it about ("Aman's birthday is
 1st September") and reminds you on Telegram the day before, every year.
@@ -6,7 +6,7 @@ A personal agent that remembers dates you tell it about ("Aman's birthday is
 ## How it works
 
 - You message the bot on Telegram → Telegram forwards it to `/webhook` on
-  Cloud Run → Claude extracts the name/date → saved to Firestore.
+  Cloud Run → Gemini (free API) extracts the name/date → saved to Firestore.
 - Cloud Scheduler hits `/check-reminders` once a day → checks Firestore for
   anything happening tomorrow → sends you a Telegram message if there's a match.
 
@@ -33,9 +33,11 @@ gcloud services enable run.googleapis.com firestore.googleapis.com \
 gcloud firestore databases create --region=asia-south1   # pick a region near you
 ```
 
-## 3. Get an Anthropic API key
+## 3. Get a free Gemini API key
 
-Get one from the Claude Console (console.anthropic.com) — this is `ANTHROPIC_API_KEY`.
+Go to **ai.google.dev**, click **"Get API Key"**, sign in with your Google account
+(no credit card needed). This is `GEMINI_API_KEY`. The free tier gives you 1,500
+requests/day — far more than a reminder bot will ever use.
 
 ## 4. Deploy to Cloud Run
 
@@ -46,7 +48,7 @@ gcloud run deploy reminder-bot \
   --source . \
   --region asia-south1 \
   --allow-unauthenticated \
-  --set-env-vars TELEGRAM_BOT_TOKEN=<your_token>,ANTHROPIC_API_KEY=<your_key>,SCHEDULER_SECRET=<make_up_a_random_string>
+  --set-env-vars TELEGRAM_BOT_TOKEN=<your_token>,GEMINI_API_KEY=<your_key>,SCHEDULER_SECRET=<make_up_a_random_string>
 ```
 
 This builds the Dockerfile and deploys it. Note the **Service URL** it gives you,
@@ -89,7 +91,7 @@ This runs every day at 9am IST and checks if any event is happening tomorrow.
 ```bash
 pip install -r requirements.txt --break-system-packages
 export TELEGRAM_BOT_TOKEN=<your_token>
-export ANTHROPIC_API_KEY=<your_key>
+export GEMINI_API_KEY=<your_key>
 export GOOGLE_APPLICATION_CREDENTIALS=<path_to_service_account_json>
 python main.py
 ```

@@ -16,7 +16,7 @@ import requests
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 
-from claude_parser import parse_message
+from gemini_parser import parse_message
 from firestore_db import add_event, get_events_for_month_day, set_owner_chat_id, get_owner_chat_id
 
 app = Flask(__name__)
