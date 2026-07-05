@@ -70,6 +70,11 @@ Open Telegram, find your bot, send any message (e.g. "hi"). This registers your
 Then try: **"Aman's birthday is on 1st September"** — it should reply confirming
 it saved it.
 
+Other commands you can send the bot:
+- `/list` — shows every event currently saved
+- `/delete <name>` — deletes a saved event (e.g. `/delete Aman`)
+- `/help` — shows usage instructions
+
 ## 7. Set up the daily Cloud Scheduler job
 
 ```bash
