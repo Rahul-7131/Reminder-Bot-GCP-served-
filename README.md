@@ -1,81 +1,93 @@
-# Reminder Bot (Telegram + Gemini + GCP)
+# Reminder Bot (Telegram + OpenAI + GCP)
 
-A personal agent that remembers dates you tell it about ("Aman's birthday is
-1st September") and reminds you on Telegram the day before, every year.
+A personal Telegram bot that remembers annual dates like birthdays and
+anniversaries, plus one-time reminders like trains, appointments, bills, and
+meetings.
 
-## How it works
+## How It Works
 
-- You message the bot on Telegram → Telegram forwards it to `/webhook` on
-  Cloud Run → Gemini (free API) extracts the name/date → saved to Firestore.
-- Cloud Scheduler hits `/check-reminders` once a day → checks Firestore for
-  anything happening tomorrow → sends you a Telegram message if there's a match.
+- You message the bot on Telegram.
+- Telegram forwards the message to `/webhook` on Cloud Run.
+- The bot tries a local rule-based parser first for common messages.
+- If needed, it calls OpenAI to parse the message into a structured action.
+- Reminders are stored in Firestore.
+- Cloud Scheduler calls `/check-reminders` once a day and the bot sends matching
+  reminders for today.
 
----
+## 1. Create The Telegram Bot
 
-## 1. Create the Telegram bot
+1. Open Telegram, search for **@BotFather**, and start a chat.
+2. Send `/newbot` and follow the prompts.
+3. Save the bot token. This is `TELEGRAM_BOT_TOKEN`.
 
-1. Open Telegram, search for **@BotFather**, start a chat.
-2. Send `/newbot`, follow the prompts (choose a name and a username ending in `bot`).
-3. BotFather gives you a **token** like `123456:ABC-DEF...`. Save it — this is `TELEGRAM_BOT_TOKEN`.
-
-## 2. Set up the GCP project
+## 2. Set Up The GCP Project
 
 ```bash
 gcloud auth login
-gcloud projects create your-reminder-bot-id   # or use an existing project
+gcloud projects create your-reminder-bot-id
 gcloud config set project your-reminder-bot-id
 
-# Enable required services
 gcloud services enable run.googleapis.com firestore.googleapis.com \
   cloudscheduler.googleapis.com
 
-# Create a Firestore database (Native mode)
-gcloud firestore databases create --region=asia-south1   # pick a region near you
+gcloud firestore databases create --region=asia-south1
 ```
 
-## 3. Get a free Gemini API key
+## 3. Configure Parser API Keys
 
-Go to **ai.google.dev**, click **"Get API Key"**, sign in with your Google account
-(no credit card needed). This is `GEMINI_API_KEY`. The free tier gives you 1,500
-requests/day — far more than a reminder bot will ever use.
+Create an OpenAI API key from the OpenAI platform dashboard. This is
+`OPENAI_API_KEY`.
 
-## 4. Deploy to Cloud Run
+Optional variables:
 
-From inside this project folder:
+- `OPENAI_MODEL` defaults to `gpt-4.1-mini`.
+- `GEMINI_API_KEY` can still be set as a fallback if you want Gemini available.
+- `BOT_TIMEZONE` defaults to `Asia/Kolkata`.
+
+The bot tries the local parser before making any model call, so common messages
+like `Rahul bday 2 July`, `Doctor appointment tomorrow`, `Show July reminders`,
+and `What's next?` can work without using model quota.
+
+## 4. Deploy To Cloud Run
 
 ```bash
 gcloud run deploy reminder-bot \
   --source . \
   --region asia-south1 \
   --allow-unauthenticated \
-  --set-env-vars TELEGRAM_BOT_TOKEN=<your_token>,GEMINI_API_KEY=<your_key>,SCHEDULER_SECRET=<make_up_a_random_string>
+  --set-env-vars TELEGRAM_BOT_TOKEN=<your_token>,OPENAI_API_KEY=<your_openai_key>,SCHEDULER_SECRET=<make_up_a_random_string>
 ```
 
-This builds the Dockerfile and deploys it. Note the **Service URL** it gives you,
-e.g. `https://reminder-bot-xyz.a.run.app`.
+Note the service URL, for example:
 
-## 5. Point Telegram at your webhook
+```text
+https://reminder-bot-xyz.a.run.app
+```
+
+## 5. Point Telegram At Your Webhook
 
 ```bash
 curl "https://api.telegram.org/bot<your_token>/setWebhook?url=https://reminder-bot-xyz.a.run.app/webhook"
 ```
 
-You should get `{"ok":true,"result":true,...}` back.
+## 6. Try The Bot
 
-## 6. Message the bot once
+Message the bot once so it can save your chat id, then try:
 
-Open Telegram, find your bot, send any message (e.g. "hi"). This registers your
-`chat_id` as the "owner" in Firestore so reminders know where to go.
+- `Rahul bday 2 July`
+- `Doctor appointment tomorrow`
+- `Remind me to catch the train on 3 June`
+- `Rahul birthday is actually on 3 July`
+- `Show July reminders`
+- `What's next?`
 
-Then try: **"Aman's birthday is on 1st September"** — it should reply confirming
-it saved it.
+Commands:
 
-Other commands you can send the bot:
-- `/list` — shows every event currently saved
-- `/delete <name>` — deletes a saved event (e.g. `/delete Aman`)
-- `/help` — shows usage instructions
+- `/list` shows every saved reminder.
+- `/delete <name>` deletes a saved reminder.
+- `/help` shows help text.
 
-## 7. Set up the daily Cloud Scheduler job
+## 7. Set Up The Daily Scheduler
 
 ```bash
 gcloud scheduler jobs create http reminder-check \
@@ -87,25 +99,15 @@ gcloud scheduler jobs create http reminder-check \
   --time-zone="Asia/Kolkata"
 ```
 
-This runs every day at 9am IST and checks if any event is happening tomorrow.
-
----
-
-## Local testing (optional, before deploying)
+## Local Testing
 
 ```bash
-pip install -r requirements.txt --break-system-packages
+pip install -r requirements.txt
 export TELEGRAM_BOT_TOKEN=<your_token>
-export GEMINI_API_KEY=<your_key>
+export OPENAI_API_KEY=<your_openai_key>
+export OPENAI_MODEL=gpt-4.1-mini
 export GOOGLE_APPLICATION_CREDENTIALS=<path_to_service_account_json>
 python main.py
 ```
 
-Use `ngrok http 8080` to get a public URL for testing the Telegram webhook locally.
-
-## Extending this later
-
-- Add a `/list` command to show all saved events.
-- Add a `/delete <name>` command.
-- Support reminders N days before (not just 1), configurable per event.
-- Add recurring non-annual reminders (e.g. "remind me every Monday").
+Use `ngrok http 8080` to test the Telegram webhook locally.
